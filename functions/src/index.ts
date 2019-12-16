@@ -31,11 +31,11 @@ function upsertEntry(entry: any) {
   userEntries.get().then(function (querySnapshot: any) {
     if (querySnapshot.empty) {
       console.log("[" + entry.dateStr + "] Adding entry for: " + entry.name)
-        //entriesRef.add(entry)
+        entriesRef.add(entry)
     } else {
       console.log("[" + entry.dateStr + "] Updating entry for: " + entry.name)
       querySnapshot.forEach(function (queryDocSnapshot: any) {
-          //queryDocSnapshot.ref.set(entry)
+        queryDocSnapshot.ref.set(entry)
       })
     }
   })
