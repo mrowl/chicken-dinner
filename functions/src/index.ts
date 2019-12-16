@@ -30,10 +30,10 @@ function upsertEntry(entry: any) {
     .where("date", "==", entry.date)
   userEntries.get().then(function (querySnapshot: any) {
     if (querySnapshot.empty) {
-      console.log("[" + entry.dateStr + "] Adding entry for: " + entry.name)
-        entriesRef.add(entry)
+      console.log("[" + entry.date + "] Adding entry for: " + entry.name)
+      entriesRef.add(entry)
     } else {
-      console.log("[" + entry.dateStr + "] Updating entry for: " + entry.name)
+      console.log("[" + entry.date + "] Updating entry for: " + entry.name)
       querySnapshot.forEach(function (queryDocSnapshot: any) {
         queryDocSnapshot.ref.set(entry)
       })
