@@ -69,3 +69,5 @@ functions/**/*.js
 functions/**/*.js.map
 
 etc/
+firebase.js
+*.bak
