@@ -7,7 +7,7 @@ import Entry from './Entry';
 class Entries extends Component {
   renderEntry() {
     const {data} = this.props;
-    const entries = _.map(data, (value, key) => {
+    const entries = _.map(data.entries, (value, key) => {
       return <Entry key={key} entryId={key} entry={value} />;
     });
     if (!_.isEmpty(entries)) {

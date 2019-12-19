@@ -1,14 +1,15 @@
 import React, {Component} from 'react';
-import Entries from './components/Entries';
 import LineChart from './components/LineChart';
 
 class App extends Component {
   render() {
+    const divStyle = {
+      display: "block",
+      height: "600px",
+      width: "800px",
+    }
     return (
-      <div>
-        <LineChart/>
-        <Entries/>
-      </div>
+      <LineChart/>
     );
   }
 }
