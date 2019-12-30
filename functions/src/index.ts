@@ -15,16 +15,12 @@ admin.initializeApp({
 const db = admin.firestore();
 const entriesRef = db.collection("entries")
 
-const CONFIG_CLIENT_ID = config.client_id
-const CONFIG_CLIENT_SECRET = config.client_secret
-const CONFIG_SHEET_ID = config.sheet_id
-
 // The OAuth Callback Redirect.
 const FUNCTIONS_REDIRECT = `https://us-central1-chicken-dinner-7b640.cloudfunctions.net/oauthcallback`
 
 // setup for authGoogleAPI
 const SCOPES = ['https://www.googleapis.com/auth/spreadsheets'];
-const functionsOauthClient = new OAuth2Client(CONFIG_CLIENT_ID, CONFIG_CLIENT_SECRET,
+const functionsOauthClient = new OAuth2Client(config.client_id, config.client_secret,
   FUNCTIONS_REDIRECT);
 
 let oauthTokens: any = null;
@@ -64,31 +60,6 @@ const options = {
   }
 }
 const re = /"scoreList":(\[\{.*\}\])\}/
-
-/**
-const staceyColumns = [
-  'scotts',
-  'toby',
-  'DefinitelyNotAdrian',
-  'Vinny',
-  'tigerswell',
-  'tatyana',
-  'garbage king',
-]
-*/
-
-const scottColumns = [
-  'scotts',
-  'toby',
-  'kjc9',
-  'bdorf',
-  'SamG',
-  'Aaron In Progress',
-  'Ben M',
-  'Maria',
-  'Marissa',
-  'Zack',
-]
 
 // checks if oauthTokens have been loaded into memory, and if not, retrieves them
 async function getAuthorizedClient() {
@@ -137,7 +108,7 @@ function recordResults(results: Array<any>) {
   const dateStr: string = date.toISOString().split('T')[0]
   console.log('Processing results for date: ' + dateStr)
   
-  const scoreMap: Record<string, number> = {};
+  const entries: Array<any> = []
   results.forEach((result: any) => {
     if (result.finished) {
       const split: Array<string> = result.solveTime.split(':')
@@ -154,41 +125,58 @@ function recordResults(results: Array<any>) {
         timestamp: timestamp,
         date: dateStr
       }
-      scoreMap[entry.name] = entry.solveTime;
+      entries.push(entry)
       upsertEntry(entry)
     }
   })
-
-  const row: Array<any> = [dateStr, dayOfWeek]
-  scottColumns.forEach((name: string) => {
-    if (scoreMap[name] !== null) {
-      row.push(scoreMap[name])
-    } else {
-      row.push(-1)
-    }
-  })
-  appendRowToSheet(row)
+  addEntriesToSheet(entries)
 }
 
-function fetchScores() {
-  request.get(options, function(error: any, response: Response, body: string) {
-    const match: RegExpMatchArray | null = body.match(re)
-    if (match !== null && match.length > 1) {
-      const results: any = JSON.parse(match[1])
-      recordResults(results)
+function addEntriesToSheet(entries: Array<any>) {
+  console.log("processing " + entries.length + " entries for sheet")
+  const entryMap: Record<string, Record<string, number>> = {}
+  entries.forEach((entry: any) => {
+    if (entryMap[entry.date] === undefined) {
+      entryMap[entry.date] = {}
     }
+    entryMap[entry.date][entry.name] = entry.solveTime
+  })
+
+  const sheets: Record<string, Array<string>> = config.sheets
+  const sheetIds: Array<string> = Object.keys(sheets)
+  const rowsBySheetId: Record<string, Array<any>> = {}
+  sheetIds.forEach((sheetId: string) => {
+    rowsBySheetId[sheetId] = []
+  })
+  Object.keys(entryMap).sort().forEach((date: string) => {
+    sheetIds.forEach((sheetId: string) => {
+      const columns: Array<string> = sheets[sheetId]
+      const row: Array<any> = [date]
+      columns.forEach((name: string) => {
+        if (entryMap[date][name] !== undefined) {
+          row.push(entryMap[date][name])
+        } else {
+          row.push(null)
+        }
+      })
+      rowsBySheetId[sheetId].push(row)
+    })
+  })
+  console.log('adding rows to sheet:')
+  console.log(rowsBySheetId)
+  sheetIds.forEach((sheetId: string) => {
+    appendRowsToSheet(sheetId, rowsBySheetId[sheetId])
   })
 }
 
-// trigger function to write to Sheet when new data comes in on CONFIG_DATA_PATH
-function appendRowToSheet(row: Array<number>) {
+function appendRowsToSheet(sheetId: string, rows: Array<Array<any>>) {
   const req: any = {
-    spreadsheetId: CONFIG_SHEET_ID,
-    range: 'A:L',
+    spreadsheetId: sheetId,
+    range: 'A:K',
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     resource: {
-      values: [row],
+      values: rows,
     },
   }
   getAuthorizedClient().then((client) => {
@@ -203,6 +191,37 @@ function appendRowToSheet(row: Array<number>) {
     console.log('error')
   })
 }
+
+function fetchScores() {
+  request.get(options, function(error: any, response: Response, body: string) {
+    const match: RegExpMatchArray | null = body.match(re)
+    if (match !== null && match.length > 1) {
+      const results: any = JSON.parse(match[1])
+      recordResults(results)
+    }
+  })
+}
+
+function runBackfill() {
+  entriesRef.where("date", ">=", "2019-12-01").get().then(function (querySnapshot: any) {
+    const entries: Array<any> = []
+    querySnapshot.forEach(function (doc: any) {
+      console.log("pushing entry for backfill:")
+      console.log(doc.data())
+      entries.push(doc.data())
+    })
+    addEntriesToSheet(entries)
+  })
+}
+
+exports.backfill = functions.pubsub.schedule('56 21 1 1 1')
+  .timeZone('America/New_York')
+  .onRun((context: any) => {
+    if (false) {
+      runBackfill()
+    }
+    return null
+  })
 
 exports.weekdayRun = functions.pubsub.schedule('56 21 * * 1-5')
   .timeZone('America/New_York')
